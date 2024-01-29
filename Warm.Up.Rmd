@@ -1,0 +1,140 @@
+---
+title: "Warm.Up"
+author: "Abiodun Awosola"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+
+```{r, data, message=F, warning=F}
+#Imports Data
+
+wine_data <- read.table("winequality-white.csv", sep = ";",
+                        check.names = TRUE, header=T)
+
+```
+
+```{r, warning=FALSE, message=F}
+library(mlr3)
+task = as_task_classif(wine_data, target = "quality")
+split = partition(task)
+learner = lrn("classif.rpart")
+
+learner$train(task, row_ids = split$train)
+learner$model
+
+
+
+
+```
+
+
+```{r, warning=FALSE, message=F, fig.height = 30, fig.width = 30}
+library(mlr3)
+task = as_task_classif(wine_data, target = "quality")
+task
+
+library(mlr3viz)
+
+autoplot(task, type = "pairs")
+
+c(task$nrow, task$ncol) # Specifies numbers of columns and rows
+
+
+```
+
+```{r, warning=FALSE, message=F, fig.height = 18, fig.width = 18}
+
+features <- c(Features = task$feature_names,
+  Target = task$target_names)
+
+library(knitr)
+kable(features, caption = "Features and Target")
+
+tail(task$row_ids)  # last 6 rows ID
+
+library(xtable)
+
+# retrieves all data
+ln1 <- xtable(t(head(task$data(), 10)))
+
+kable(ln1)
+```
+
+```{r}
+library(xtable)
+
+# retrieves data for rows with IDs 1-10 and all feature columns with 
+#target appearing last
+ln2 <- xtable(t(task$data(rows = c(1:10), 
+cols = c(task$feature_names, task$target_names))))
+
+kable(ln2)
+
+kable(xtable(t(summary(as.data.table(task)))))
+```
+
+```{r}
+# Modifies a task while keeping the original object intact.
+
+task_modif = task$clone()
+task_modif$filter(1:2)
+# original data unaffected
+task$head()
+```
+
+
+```{r}
+# load a classification tree
+
+lrn_rpart <- lrn("classif.rpart",  maxdepth = 4) # information on the metadata 
+#("regr.rpart" for regression model)
+
+# passes the task to the learner via $train()
+lrn_rpart$train(task)
+
+# inspects the trained model
+lrn_rpart$model
+```
+
+```{r}
+# set.seed(654) : partition() affects prediction accuracy and keeps changing
+split = partition(task) # what data is the output, by row_ids(YES)
+
+```
+
+
+```{r}
+
+#When training model, only u the training data by from 
+#the partition is used selected by row IDs
+
+lrn_rpart$train(task, row_ids = split$train)
+```
+
+```{r}
+#Makes prediction on new data
+
+prediction = lrn_rpart$predict(task, row_ids = split$test)
+prediction
+
+prediction$response[1:8]
+```
+
+
+```{r}
+# 'maxdepth = 13' predicts 100% of feature 6  
+
+library(mlr3viz)
+prediction = lrn_rpart$predict(task, split$test) 
+autoplot(prediction)
+```
+
+
+```{r}
+# ParamSet output 
+lrn_rpart$param_set
+
+# gets list of non-default hyperparameters (i.e., those that have been set)
+lrn_rpart$param_set$values
+```
