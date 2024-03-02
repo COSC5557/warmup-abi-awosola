@@ -1,9 +1,11 @@
 ---
-title: "COSC 5557"
+title: "COSC 5557: Practical ML"
 subtitle: "Warm Up Exercise"
 author: "Abiodun Awosola"
 date: "`r Sys.Date()`"
-output: pdf_document
+output:
+  pdf_document:
+    latex_engine: xelatex
 ---
 
 # Loading Basic Packages
@@ -35,6 +37,7 @@ lgr::get_logger("mlr3")$set_threshold("warn")
 wine_data <- read.table("winequality-white.csv", sep = ";",
                         check.names = TRUE, header=T)
 
+str(wine_data)
 ```
 
 
