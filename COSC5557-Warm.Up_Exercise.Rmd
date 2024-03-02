@@ -1,0 +1,224 @@
+---
+title: "COSC 5557: Practical ML"
+subtitle: "Warm Up Exercise"
+author: "Abiodun Awosola"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+# Loading Basic Packages
+
+```{r chunk1, warning=FALSE, message=F}
+
+knitr::opts_chunk$set(comment = NA) # removes '##' from outputs
+
+# .Rprofile   (# allows universal package installation)
+options(repos = c(
+  mlrorg = "https://mlr-org.r-universe.dev",
+  CRAN = "https://cloud.r-project.org/"
+))
+
+
+library(mlr3verse)
+library(mlr3learners)
+
+lgr::get_logger("mlr3")$set_threshold("warn")
+
+```
+
+# Creating Tasks and Learners
+
+```{r chunk2, warning=FALSE, message=F}
+
+# Imports Data
+
+wine_data <- read.table("winequality-white.csv", sep = ";",
+                        check.names = TRUE, header=T)
+
+str(wine_data)
+```
+
+
+
+```{r chunk3, warning=FALSE, message=F}
+
+# Creates mlr3 task; 
+# target is the column to be learnt
+
+wine_tsk = as_task_classif(wine_data, target = "quality")
+
+print(wine_tsk)
+```
+
+# Phylogenetic tree
+
+```{r chunk4, warning=F, message=F, fig.height = 9, fig.width = 8}
+
+# phylogenetic tree
+
+library(ClustOfVar)
+library(ape)
+vctree <- hclustvar(wine_data)
+plot(as.phylo(vctree), type = "fan")
+```
+
+
+```{r chunk5, warning=FALSE, message=F}
+
+# creates learner 
+# 2 equivalent calls:
+
+learner_1 = mlr_learners$get("classif.rpart")
+learner_1 = lrn("classif.rpart")
+print(learner_1)
+```
+
+# Train and Predict
+
+```{r chunk6, warning=FALSE, message=F}
+
+# trains learner on subset of task
+learner_1$train(wine_tsk, row_ids = 1:3918)
+
+# this is what the decision tree looks like
+print(learner_1$model)
+```
+
+```{r chunk7, warning=FALSE, message=F}
+
+# predicts using observations from task
+prediction = learner_1$predict(wine_tsk, row_ids = 3919:4898)
+print(prediction)
+```
+
+# Evaluation
+
+Scoring the Prediction object with some metrics. And take a deeper look by inspecting the confusion matrix.
+
+
+```{r chunk8, warning=FALSE, message=F}
+
+head(as.data.table(mlr_measures))
+```
+
+```{r chunk9, warning=FALSE, message=F}
+
+
+scores = prediction$score(msr("classif.acc"))
+print(scores)
+```
+
+
+
+```{r chunk10, warning=FALSE, message=F}
+
+scores = prediction$score(msrs(c("classif.acc", "classif.ce")))
+print(scores)
+
+```
+
+## Confusion matrix
+
+```{r chunk11, warning=FALSE, message=F}
+
+cm = prediction$confusion
+print(cm)
+
+```
+
+## Key to understand the confusion matrix
+
+*- 5 was predicted as 6 144 times. (response, truth) = (6,5)*
+
+
+# Changing Hyperparameters
+
+The `Learner` contains information about all parameters that can be configured, including data type, constraints, defaults, etc. The hyperparameters can be changed either during construction of later through an active binding.
+
+
+```{r chunk12, warning=FALSE, message=F}
+
+as.data.table(learner_1$param_set)[, .(id, class, lower, upper, nlevels)]
+
+
+learner_2 = lrn("classif.rpart", predict_type = "prob", minsplit = 50)
+learner_2$param_set$values$minsplit = 50
+```
+
+
+
+# Resampling
+
+`Resampling` repeats the train-predict-score loop and collects all results in a nice 'data.table::data.table()'.
+
+```{r chunk13, warning=FALSE, message=F}
+
+cv10 = rsmp("cv", folds = 10)
+rr = resample(wine_tsk, learner_1, cv10)
+print(rr)
+
+```
+
+
+
+
+```{r chunk14, warning=FALSE, message=F}
+
+rr$score(msrs(c("classif.acc", "classif.ce")))[, .(iteration, task_id, learner_id, resampling_id, classif.ce)]
+
+```
+
+
+
+```{r chunk15, warning=FALSE, message=F}
+
+# gets all predictions nicely concatenated in a table
+prediction = rr$prediction()
+as.data.table(prediction)
+
+
+# The confusion matrix for entire prediction
+cm = prediction$confusion
+print(cm)
+
+```
+
+
+
+
+# Populating the learner dictionary
+
+`mlr3learners` ships out with a dozen different popular `Learners`. They can be listed from the dictionary. If more were desired, an extension package, `mlr3extralearners`, could be installed from GitHub. Importantly, after loading `mlr3extralearners`, the dictionary increases in size.
+
+
+```{r chunk16, warning=FALSE, message=F}
+
+head(as.data.table(mlr_learners)[, c("key", "packages")])
+
+library(mlr3extralearners)
+print(as.data.table(mlr_learners)[, c("key", "packages")])
+
+```
+
+
+# Benchmarking multiple learners
+
+The `benchmark` function can conveniently compare `r ref(“Learner”, “Learners”) on the same dataset(s).
+
+
+```{r chunk17, warning=FALSE, message=F}
+
+learners = list(learner_1, learner_2, lrn("classif.randomForest"))
+grid = benchmark_grid(wine_tsk, learners, cv10)
+bmr = benchmark(grid)
+print(bmr)
+
+```
+
+
+```{r chunk18, warning=FALSE, message=F}
+
+print(bmr$aggregate(measures = msrs(c("classif.acc", "classif.ce"))))
+```
